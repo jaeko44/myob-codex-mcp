@@ -40,3 +40,33 @@ def test_state_validation_rejects_mismatch() -> None:
         assert "state mismatch" in str(exc)
     else:
         raise AssertionError("Expected state mismatch")
+
+
+async def test_oauth_selects_tokens_by_business() -> None:
+    store = MemoryTokenStore()
+    store.save_business_tokens(
+        "business-a",
+        {
+            "access_token": "access-a",
+            "refresh_token": "refresh-a",
+            "expires_at": 9999999999,
+            "business_id": "business-a",
+        },
+    )
+    store.save_business_tokens(
+        "business-b",
+        {
+            "access_token": "access-b",
+            "refresh_token": "refresh-b",
+            "expires_at": 9999999999,
+            "business_id": "business-b",
+        },
+    )
+    auth = MyobOAuth(AuthConfig(client_id="client-id", client_secret="secret"), store)
+
+    assert await auth.get_valid_access_token("business-a") == "access-a"
+    assert await auth.get_valid_access_token("business-b") == "access-b"
+
+    auth.set_default_business("business-a")
+    assert auth.business_id() == "business-a"
+    assert auth.list_authorized_businesses()[0]["business_id"] == "business-a"

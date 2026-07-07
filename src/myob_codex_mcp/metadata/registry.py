@@ -102,7 +102,10 @@ ENTITY_ENDPOINTS: dict[str, EntityEndpoint] = {
 
 TOOL_CATALOG: list[dict[str, Any]] = [
     {"name": "myob_auth_status", "mutates": False, "description": "Show OAuth and business context status."},
-    {"name": "myob_oauth_authorize", "mutates": False, "description": "Start MYOB OAuth consent."},
+    {"name": "myob_oauth_authorize_business", "mutates": False, "description": "Start MYOB OAuth consent for one business/company file."},
+    {"name": "myob_business_list_authorized", "mutates": False, "description": "List locally authorised MYOB businesses."},
+    {"name": "myob_business_set_default", "mutates": False, "description": "Set default business context for future calls."},
+    {"name": "myob_business_remove_authorization", "mutates": False, "description": "Remove locally stored tokens for one business."},
     {"name": "myob_raw_get", "mutates": False, "description": "Read any MYOB API endpoint with GET."},
     {"name": "myob_raw_prepare_mutation", "mutates": False, "description": "Prepare any POST/PUT/PATCH/DELETE request for approval."},
     {"name": "myob_raw_commit_mutation", "mutates": True, "requires_approval": True, "description": "Commit an approved raw MYOB mutation."},

@@ -17,7 +17,7 @@ from myob_codex_mcp.tools.common import app_context, operation_response
 
 def _business_id(ctx: Context | None, business_id: str | None) -> str | None:
     app = app_context(ctx)
-    return business_id or app.config.default_business_id or app.auth.business_id()
+    return business_id or app.auth.business_id() or app.config.default_business_id
 
 
 def _prepare(
@@ -117,6 +117,7 @@ def register(mcp: FastMCP) -> None:
         json_body: dict[str, Any],
         layout: str | None = None,
         summary: str | None = None,
+        business_id: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """Prepare create for a supported entity using the endpoint registry."""
@@ -131,6 +132,7 @@ def register(mcp: FastMCP) -> None:
             path=path,
             body=json_body,
             summary=summary or f"Create MYOB {entity}",
+            business_id=business_id,
         )
 
     @mcp.tool()
@@ -140,6 +142,7 @@ def register(mcp: FastMCP) -> None:
         json_body: dict[str, Any],
         layout: str | None = None,
         summary: str | None = None,
+        business_id: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """Prepare update for a supported entity using the endpoint registry."""
@@ -155,89 +158,90 @@ def register(mcp: FastMCP) -> None:
             path=path,
             body=json_body,
             summary=summary or f"Update MYOB {entity} {uid}",
+            business_id=business_id,
         )
 
     @mcp.tool()
-    async def myob_customer_prepare_create(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_customer_prepare_create(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare creation of a customer contact. Requires approval before commit."""
-        return _prepare(ctx, operation_type="customer.create", method="POST", path="/Contact/Customer", body=json_body, summary="Create MYOB customer")
+        return _prepare(ctx, operation_type="customer.create", method="POST", path="/Contact/Customer", body=json_body, summary="Create MYOB customer", business_id=business_id)
 
     @mcp.tool()
-    async def myob_customer_prepare_update(uid: str, json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_customer_prepare_update(uid: str, json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare update of a customer contact. Requires approval before commit."""
         validate_guid(uid)
-        return _prepare(ctx, operation_type="customer.update", method="PUT", path=f"/Contact/Customer/{uid}", body=json_body, summary=f"Update MYOB customer {uid}")
+        return _prepare(ctx, operation_type="customer.update", method="PUT", path=f"/Contact/Customer/{uid}", body=json_body, summary=f"Update MYOB customer {uid}", business_id=business_id)
 
     @mcp.tool()
-    async def myob_supplier_prepare_create(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_supplier_prepare_create(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare creation of a supplier contact. Requires approval before commit."""
-        return _prepare(ctx, operation_type="supplier.create", method="POST", path="/Contact/Supplier", body=json_body, summary="Create MYOB supplier")
+        return _prepare(ctx, operation_type="supplier.create", method="POST", path="/Contact/Supplier", body=json_body, summary="Create MYOB supplier", business_id=business_id)
 
     @mcp.tool()
-    async def myob_supplier_prepare_update(uid: str, json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_supplier_prepare_update(uid: str, json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare update of a supplier contact. Requires approval before commit."""
         validate_guid(uid)
-        return _prepare(ctx, operation_type="supplier.update", method="PUT", path=f"/Contact/Supplier/{uid}", body=json_body, summary=f"Update MYOB supplier {uid}")
+        return _prepare(ctx, operation_type="supplier.update", method="PUT", path=f"/Contact/Supplier/{uid}", body=json_body, summary=f"Update MYOB supplier {uid}", business_id=business_id)
 
     @mcp.tool()
-    async def myob_invoice_prepare_create(json_body: dict[str, Any], layout: str = "Service", ctx: Context = None) -> dict[str, Any]:
+    async def myob_invoice_prepare_create(json_body: dict[str, Any], layout: str = "Service", business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare creation of a sales invoice. Requires approval before commit."""
-        return _prepare(ctx, operation_type="invoice.create", method="POST", path=_layout_path("/Sale/Invoice", layout), body=json_body, summary=f"Create MYOB {layout} invoice")
+        return _prepare(ctx, operation_type="invoice.create", method="POST", path=_layout_path("/Sale/Invoice", layout), body=json_body, summary=f"Create MYOB {layout} invoice", business_id=business_id)
 
     @mcp.tool()
-    async def myob_invoice_prepare_update(uid: str, json_body: dict[str, Any], layout: str = "Service", ctx: Context = None) -> dict[str, Any]:
+    async def myob_invoice_prepare_update(uid: str, json_body: dict[str, Any], layout: str = "Service", business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare update of a sales invoice. Requires approval before commit."""
-        return _prepare(ctx, operation_type="invoice.update", method="PUT", path=_layout_path("/Sale/Invoice", layout, uid), body=json_body, summary=f"Update MYOB invoice {uid}")
+        return _prepare(ctx, operation_type="invoice.update", method="PUT", path=_layout_path("/Sale/Invoice", layout, uid), body=json_body, summary=f"Update MYOB invoice {uid}", business_id=business_id)
 
     @mcp.tool()
-    async def myob_invoice_prepare_delete(uid: str, layout: str = "Service", ctx: Context = None) -> dict[str, Any]:
+    async def myob_invoice_prepare_delete(uid: str, layout: str = "Service", business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare deletion/void-style removal of a sales invoice where MYOB permits it. Critical approval required."""
-        return _prepare(ctx, operation_type="invoice.delete", method="DELETE", path=_layout_path("/Sale/Invoice", layout, uid), body=None, summary=f"Delete MYOB invoice {uid}", risk_level="critical")
+        return _prepare(ctx, operation_type="invoice.delete", method="DELETE", path=_layout_path("/Sale/Invoice", layout, uid), body=None, summary=f"Delete MYOB invoice {uid}", risk_level="critical", business_id=business_id)
 
     @mcp.tool()
-    async def myob_sales_order_prepare_create(json_body: dict[str, Any], layout: str = "Service", ctx: Context = None) -> dict[str, Any]:
+    async def myob_sales_order_prepare_create(json_body: dict[str, Any], layout: str = "Service", business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare creation of a sales order. Requires approval before commit."""
-        return _prepare(ctx, operation_type="sales_order.create", method="POST", path=_layout_path("/Sale/Order", layout), body=json_body, summary=f"Create MYOB {layout} sales order")
+        return _prepare(ctx, operation_type="sales_order.create", method="POST", path=_layout_path("/Sale/Order", layout), body=json_body, summary=f"Create MYOB {layout} sales order", business_id=business_id)
 
     @mcp.tool()
-    async def myob_bill_prepare_create(json_body: dict[str, Any], layout: str = "Item", ctx: Context = None) -> dict[str, Any]:
+    async def myob_bill_prepare_create(json_body: dict[str, Any], layout: str = "Item", business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare creation of a purchase bill. Requires approval before commit."""
-        return _prepare(ctx, operation_type="bill.create", method="POST", path=_layout_path("/Purchase/Bill", layout), body=json_body, summary=f"Create MYOB {layout} bill")
+        return _prepare(ctx, operation_type="bill.create", method="POST", path=_layout_path("/Purchase/Bill", layout), body=json_body, summary=f"Create MYOB {layout} bill", business_id=business_id)
 
     @mcp.tool()
-    async def myob_bill_prepare_update(uid: str, json_body: dict[str, Any], layout: str = "Item", ctx: Context = None) -> dict[str, Any]:
+    async def myob_bill_prepare_update(uid: str, json_body: dict[str, Any], layout: str = "Item", business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare update of a purchase bill. Requires approval before commit."""
-        return _prepare(ctx, operation_type="bill.update", method="PUT", path=_layout_path("/Purchase/Bill", layout, uid), body=json_body, summary=f"Update MYOB bill {uid}")
+        return _prepare(ctx, operation_type="bill.update", method="PUT", path=_layout_path("/Purchase/Bill", layout, uid), body=json_body, summary=f"Update MYOB bill {uid}", business_id=business_id)
 
     @mcp.tool()
-    async def myob_customer_payment_prepare_record(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_customer_payment_prepare_record(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare recording a customer payment. High-risk approval required."""
-        return _prepare(ctx, operation_type="customer_payment.record", method="POST", path="/Sale/CustomerPayment", body=json_body, summary="Record MYOB customer payment", risk_level="high")
+        return _prepare(ctx, operation_type="customer_payment.record", method="POST", path="/Sale/CustomerPayment", body=json_body, summary="Record MYOB customer payment", risk_level="high", business_id=business_id)
 
     @mcp.tool()
-    async def myob_supplier_payment_prepare_record(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_supplier_payment_prepare_record(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare recording a supplier payment. High-risk approval required."""
-        return _prepare(ctx, operation_type="supplier_payment.record", method="POST", path="/Purchase/SupplierPayment", body=json_body, summary="Record MYOB supplier payment", risk_level="high")
+        return _prepare(ctx, operation_type="supplier_payment.record", method="POST", path="/Purchase/SupplierPayment", body=json_body, summary="Record MYOB supplier payment", risk_level="high", business_id=business_id)
 
     @mcp.tool()
-    async def myob_spend_money_prepare_create(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_spend_money_prepare_create(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare spend-money transaction creation. High-risk approval required."""
-        return _prepare(ctx, operation_type="spend_money.create", method="POST", path="/Banking/SpendMoneyTxn", body=json_body, summary="Create MYOB spend-money transaction", risk_level="high")
+        return _prepare(ctx, operation_type="spend_money.create", method="POST", path="/Banking/SpendMoneyTxn", body=json_body, summary="Create MYOB spend-money transaction", risk_level="high", business_id=business_id)
 
     @mcp.tool()
-    async def myob_receive_money_prepare_create(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_receive_money_prepare_create(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare receive-money transaction creation. High-risk approval required."""
-        return _prepare(ctx, operation_type="receive_money.create", method="POST", path="/Banking/ReceiveMoneyTxn", body=json_body, summary="Create MYOB receive-money transaction", risk_level="high")
+        return _prepare(ctx, operation_type="receive_money.create", method="POST", path="/Banking/ReceiveMoneyTxn", body=json_body, summary="Create MYOB receive-money transaction", risk_level="high", business_id=business_id)
 
     @mcp.tool()
-    async def myob_journal_prepare_create(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_journal_prepare_create(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare general journal creation. High-risk approval required."""
-        return _prepare(ctx, operation_type="journal.create", method="POST", path="/GeneralLedger/GeneralJournal", body=json_body, summary="Create MYOB general journal", risk_level="high")
+        return _prepare(ctx, operation_type="journal.create", method="POST", path="/GeneralLedger/GeneralJournal", body=json_body, summary="Create MYOB general journal", risk_level="high", business_id=business_id)
 
     @mcp.tool()
-    async def myob_inventory_item_prepare_create(json_body: dict[str, Any], ctx: Context) -> dict[str, Any]:
+    async def myob_inventory_item_prepare_create(json_body: dict[str, Any], business_id: str | None = None, ctx: Context = None) -> dict[str, Any]:
         """Prepare inventory item creation. Requires approval before commit."""
-        return _prepare(ctx, operation_type="inventory_item.create", method="POST", path="/Inventory/Item", body=json_body, summary="Create MYOB inventory item")
+        return _prepare(ctx, operation_type="inventory_item.create", method="POST", path="/Inventory/Item", body=json_body, summary="Create MYOB inventory item", business_id=business_id)
 
     @mcp.tool()
     async def myob_attachment_prepare_upload(
@@ -245,6 +249,7 @@ def register(mcp: FastMCP) -> None:
         file_name: str,
         content_base64: str,
         content_type: str = "application/octet-stream",
+        business_id: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """Prepare attachment upload. content_base64 is stored in the pending payload until approved."""
@@ -255,4 +260,4 @@ def register(mcp: FastMCP) -> None:
             "transport_note": "Commit currently sends JSON. Use raw mutation/custom multipart support if MYOB requires multipart for this endpoint.",
         }
         path = f"{validate_relative_path(parent_path).rstrip('/')}/Attachment"
-        return _prepare(ctx, operation_type="attachment.upload", method="POST", path=path, body=body, summary=f"Upload MYOB attachment {file_name}", risk_level="medium")
+        return _prepare(ctx, operation_type="attachment.upload", method="POST", path=path, body=body, summary=f"Upload MYOB attachment {file_name}", risk_level="medium", business_id=business_id)

@@ -14,7 +14,7 @@ This repo is a clean-room implementation. The public `fixxdigital/myob-mcp-serve
 Current implementation:
 
 - Python package and stdio MCP server.
-- MYOB OAuth URL, token exchange, refresh, logout, and encrypted token persistence.
+- MYOB OAuth URL, token exchange, refresh, logout, and encrypted multi-business token persistence.
 - MYOB API client with headers, businessId path selection, pagination, 401 refresh, 429 backoff, and unsafe mutation retry protection.
 - Read tools for accounts, tax codes, jobs, contacts, invoices, bills, payments, banking, inventory items, journals, and raw GET.
 - Write preparation tools for raw API mutations and common accounting workflows.
@@ -96,14 +96,29 @@ You can append a starter config with:
 In Codex, call:
 
 ```text
-myob_oauth_authorize
+myob_oauth_authorize_business
 ```
 
 If the localhost callback cannot be reached:
 
 ```text
-myob_oauth_authorize(manual=true)
-myob_oauth_exchange_code(code="...", business_id="...")
+myob_oauth_authorize_business(manual=true)
+myob_oauth_exchange_redirect_url(redirect_url="https://app.example/callback?code=...&businessId=...")
+```
+
+Repeat this once for each MYOB business/company file that an accountant administers. The same MYOB Developer App key/secret can be reused, but each business must grant consent separately. Authorised businesses can then be listed and selected:
+
+```text
+myob_business_list_authorized
+myob_business_set_default(business_id="...")
+myob_business_remove_authorization(business_id="...")
+```
+
+Most read tools accept `business_id`, for example:
+
+```text
+myob_invoice_list(business_id="...")
+myob_raw_get(path="/GeneralLedger/Account", business_id="...")
 ```
 
 ## Approval Flow
@@ -147,6 +162,7 @@ That keeps the MCP from artificially limiting MYOB access while still requiring 
 
 - Logs go to stderr so stdout remains MCP JSON-RPC.
 - OAuth tokens are encrypted at rest.
+- Tokens are stored per MYOB `businessId`.
 - Approval tokens are HMAC-signed and short-lived.
 - Pending operation payloads are hash-bound to approvals.
 - Audit logs redact secrets.

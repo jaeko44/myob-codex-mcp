@@ -3,10 +3,17 @@
 ## Auth
 
 - `myob_auth_status`
+- `myob_oauth_authorize_business`
 - `myob_oauth_authorize`
+- `myob_oauth_exchange_redirect_url`
 - `myob_oauth_exchange_code`
 - `myob_oauth_refresh`
 - `myob_oauth_logout`
+- `myob_business_list_authorized`
+- `myob_business_set_default`
+- `myob_business_remove_authorization`
+
+`myob_oauth_authorize_business` is repeated once per MYOB business/company file. Read and write preparation tools accept `business_id` where relevant.
 
 ## Read
 

@@ -31,7 +31,7 @@ class MyobClient:
         self._owns_client = http_client is None
 
     def _business_id(self, business_id: str | None, *, required: bool) -> str | None:
-        selected = business_id or self.config.default_business_id or self.auth.business_id()
+        selected = business_id or self.auth.business_id() or self.config.default_business_id
         if required and not selected:
             raise ValueError(
                 "No MYOB business/company file ID is selected. Re-run OAuth to capture businessId "
@@ -46,8 +46,13 @@ class MyobClient:
             return f"{self.config.api_base_url.rstrip('/')}/{selected}{clean_path}"
         return self.config.api_base_url.rstrip("/") + clean_path
 
-    async def _headers(self, extra: Mapping[str, str] | None = None) -> dict[str, str]:
-        token = await self.auth.get_valid_access_token()
+    async def _headers(
+        self,
+        extra: Mapping[str, str] | None = None,
+        *,
+        business_id: str | None = None,
+    ) -> dict[str, str]:
+        token = await self.auth.get_valid_access_token(business_id)
         headers = {
             "Authorization": f"Bearer {token}",
             "x-myobapi-key": self.config.auth.client_id,
@@ -84,12 +89,13 @@ class MyobClient:
         if method in {"POST", "PUT", "PATCH"}:
             request_params.setdefault("returnBody", "true")
 
-        request_headers = await self._headers(headers)
+        resolved_business_id = self._business_id(business_id, required=require_business_id)
+        request_headers = await self._headers(headers, business_id=resolved_business_id)
         if idempotency_key:
             request_headers["Idempotency-Key"] = idempotency_key
 
         max_retries = 3
-        url = self._url(path, business_id, require_business_id=require_business_id)
+        url = self._url(path, resolved_business_id, require_business_id=require_business_id)
 
         for attempt in range(max_retries + 1):
             try:
@@ -117,8 +123,8 @@ class MyobClient:
                 raise MyobApiError(0, f"Request failed: {exc}") from exc
 
             if response.status_code == 401 and attempt < max_retries:
-                await self.auth.refresh_access_token()
-                request_headers = await self._headers(headers)
+                await self.auth.refresh_access_token(resolved_business_id)
+                request_headers = await self._headers(headers, business_id=resolved_business_id)
                 if idempotency_key:
                     request_headers["Idempotency-Key"] = idempotency_key
                 continue

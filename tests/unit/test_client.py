@@ -48,6 +48,47 @@ async def test_client_sends_myob_headers_and_business_path(tmp_path) -> None:
     await client.close()
 
 
+async def test_client_uses_business_specific_token(tmp_path) -> None:
+    seen = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["authorization"] = request.headers["authorization"]
+        return httpx.Response(200, json={"ok": True})
+
+    store = MemoryTokenStore()
+    store.save_business_tokens(
+        "business-a",
+        {
+            "access_token": "access-a",
+            "refresh_token": "refresh-a",
+            "expires_at": 9999999999,
+            "business_id": "business-a",
+        },
+    )
+    store.save_business_tokens(
+        "business-b",
+        {
+            "access_token": "access-b",
+            "refresh_token": "refresh-b",
+            "expires_at": 9999999999,
+            "business_id": "business-b",
+        },
+    )
+    auth = MyobOAuth(app_config(tmp_path).auth, store)
+    client = MyobClient(
+        app_config(tmp_path),
+        auth,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+    await client.request("GET", "/Sale/Invoice", business_id="business-a")
+
+    assert seen["url"].endswith("/accountright/business-a/Sale/Invoice")
+    assert seen["authorization"] == "Bearer access-a"
+    await client.close()
+
+
 async def test_mutating_timeout_without_idempotency_is_not_retried(tmp_path) -> None:
     async def handler(_: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("timeout")

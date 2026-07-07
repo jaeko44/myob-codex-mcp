@@ -18,6 +18,17 @@ class TokenStore(Protocol):
     def load(self) -> dict[str, Any] | None: ...
     def save(self, tokens: dict[str, Any]) -> None: ...
     def clear(self) -> None: ...
+    def list_businesses(self) -> list[dict[str, Any]]: ...
+    def load_business_tokens(self, business_id: str | None = None) -> dict[str, Any] | None: ...
+    def save_business_tokens(
+        self,
+        business_id: str,
+        tokens: dict[str, Any],
+        *,
+        make_default: bool = True,
+    ) -> None: ...
+    def set_default_business(self, business_id: str) -> None: ...
+    def remove_business(self, business_id: str) -> bool: ...
 
 
 class AuthError(RuntimeError):
@@ -43,6 +54,7 @@ class MyobOAuth:
         self.config = config
         self.token_store = token_store
         self._tokens = token_store.load()
+        self._active_business_id = self._tokens.get("business_id") if self._tokens else None
         self._oauth_state: str | None = None
         self._http_client = http_client
 
@@ -51,6 +63,7 @@ class MyobOAuth:
         return self._tokens
 
     def build_authorization_request(self, *, manual: bool = False) -> AuthorizationRequest:
+        _ = manual
         if not self.config.client_id:
             raise AuthError("MYOB client_id is not configured")
         self._oauth_state = secrets.token_urlsafe(32)
@@ -62,8 +75,6 @@ class MyobOAuth:
             "prompt": "consent",
             "state": self._oauth_state,
         }
-        if manual:
-            params["manual"] = "true"
         return AuthorizationRequest(
             url=f"{AUTH_URL}?{urlencode(params)}",
             state=self._oauth_state,
@@ -76,6 +87,9 @@ class MyobOAuth:
         self._oauth_state = None
         if not expected or state != expected:
             raise AuthError("OAuth state mismatch; authorization was rejected")
+
+    def has_pending_authorization(self) -> bool:
+        return bool(self._oauth_state)
 
     async def _post_token(self, payload: dict[str, str]) -> dict[str, Any]:
         if not self.config.client_id or not self.config.client_secret:
@@ -90,6 +104,11 @@ class MyobOAuth:
         return resp.json()
 
     async def exchange_code(self, code: str, *, business_id: str | None = None) -> dict[str, Any]:
+        if not business_id:
+            raise AuthError(
+                "business_id is required for MYOB OAuth exchange. Use the businessId query "
+                "parameter from the OAuth redirect URL."
+            )
         data = await self._post_token({
             "client_id": self.config.client_id,
             "client_secret": self.config.client_secret,
@@ -99,25 +118,33 @@ class MyobOAuth:
         })
         tokens = self._normalize_tokens(data, business_id=business_id)
         self._tokens = tokens
-        self.token_store.save(tokens)
+        self._active_business_id = business_id
+        self.token_store.save_business_tokens(business_id, tokens, make_default=True)
         return tokens
 
-    async def refresh_access_token(self) -> dict[str, Any]:
-        if not self._tokens or not self._tokens.get("refresh_token"):
-            raise AuthError("No refresh token is available. Run myob_oauth_authorize first.")
+    async def refresh_access_token(self, business_id: str | None = None) -> dict[str, Any]:
+        tokens_to_refresh = self.token_store.load_business_tokens(business_id) or self._tokens
+        if not tokens_to_refresh or not tokens_to_refresh.get("refresh_token"):
+            raise AuthError("No refresh token is available. Run myob_oauth_authorize_business first.")
+
         data = await self._post_token({
             "client_id": self.config.client_id,
             "client_secret": self.config.client_secret,
             "grant_type": "refresh_token",
-            "refresh_token": str(self._tokens["refresh_token"]),
+            "refresh_token": str(tokens_to_refresh["refresh_token"]),
         })
+        resolved_business_id = str(business_id or tokens_to_refresh.get("business_id") or "")
+        if not resolved_business_id:
+            raise AuthError("Stored MYOB tokens do not include a business_id")
+
         tokens = self._normalize_tokens(
             data,
-            refresh_token_fallback=str(self._tokens["refresh_token"]),
-            business_id=self._tokens.get("business_id"),
+            refresh_token_fallback=str(tokens_to_refresh["refresh_token"]),
+            business_id=resolved_business_id,
         )
         self._tokens = tokens
-        self.token_store.save(tokens)
+        self._active_business_id = resolved_business_id
+        self.token_store.save_business_tokens(resolved_business_id, tokens, make_default=False)
         return tokens
 
     def _normalize_tokens(
@@ -141,35 +168,69 @@ class MyobOAuth:
             tokens["business_id"] = business_id
         return tokens
 
-    async def get_valid_access_token(self) -> str:
-        if not self._tokens:
-            raise AuthError("Not authenticated. Run myob_oauth_authorize first.")
-        if time.time() > float(self._tokens.get("expires_at", 0)) - 60:
-            await self.refresh_access_token()
-        return str(self._tokens["access_token"])
+    async def get_valid_access_token(self, business_id: str | None = None) -> str:
+        tokens = self.token_store.load_business_tokens(business_id)
+        if not tokens:
+            raise AuthError(
+                "Not authenticated for this MYOB business. Run myob_oauth_authorize_business first."
+            )
+        resolved_business_id = str(tokens.get("business_id") or business_id or "")
+        if time.time() > float(tokens.get("expires_at", 0)) - 60:
+            tokens = await self.refresh_access_token(resolved_business_id or None)
+        self._tokens = tokens
+        self._active_business_id = resolved_business_id or None
+        return str(tokens["access_token"])
 
     def business_id(self) -> str | None:
-        if not self._tokens:
-            return None
-        value = self._tokens.get("business_id")
+        value = self._active_business_id or (self._tokens or {}).get("business_id")
         return str(value) if value else None
 
+    def list_authorized_businesses(self) -> list[dict[str, Any]]:
+        return self.token_store.list_businesses()
+
+    def set_default_business(self, business_id: str) -> dict[str, Any]:
+        self.token_store.set_default_business(business_id)
+        self._tokens = self.token_store.load_business_tokens(business_id)
+        self._active_business_id = business_id
+        return {
+            "business_id": business_id,
+            "is_default": True,
+            "authenticated": bool(self._tokens),
+        }
+
+    def remove_business(self, business_id: str) -> dict[str, Any]:
+        removed = self.token_store.remove_business(business_id)
+        self._tokens = self.token_store.load()
+        self._active_business_id = self._tokens.get("business_id") if self._tokens else None
+        return {
+            "business_id": business_id,
+            "removed": removed,
+            "default_business_id": self.business_id(),
+        }
+
     def status(self) -> dict[str, Any]:
-        if not self._tokens:
+        businesses = self.token_store.list_businesses()
+        tokens = self.token_store.load()
+        if not tokens:
             return {
                 "authenticated": False,
-                "message": "Not authenticated. Run myob_oauth_authorize first.",
+                "message": "Not authenticated. Run myob_oauth_authorize_business to connect.",
+                "authorized_business_count": len(businesses),
+                "authorized_businesses": businesses,
             }
-        expires_in = max(0, int(float(self._tokens.get("expires_at", 0)) - time.time()))
+        expires_in = max(0, int(float(tokens.get("expires_at", 0)) - time.time()))
         return {
             "authenticated": True,
             "expires_in_seconds": expires_in,
-            "has_refresh_token": bool(self._tokens.get("refresh_token")),
-            "business_id": self._tokens.get("business_id"),
-            "scope": self._tokens.get("scope", ""),
+            "has_refresh_token": bool(tokens.get("refresh_token")),
+            "business_id": tokens.get("business_id"),
+            "scope": tokens.get("scope", ""),
+            "authorized_business_count": len(businesses),
+            "authorized_businesses": businesses,
         }
 
     def logout(self) -> dict[str, Any]:
         self._tokens = None
+        self._active_business_id = None
         self.token_store.clear()
         return {"authenticated": False, "message": "Stored MYOB OAuth tokens were cleared."}
