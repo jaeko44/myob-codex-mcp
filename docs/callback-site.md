@@ -36,6 +36,16 @@ app.professionalaccounting.com.au
 
 Point DNS for `app.professionalaccounting.com.au` to the selected static host, then make sure HTTPS is active before using it as a MYOB redirect URI.
 
+For this repo's GitHub Pages deployment, add this DNS record:
+
+```text
+Type:  CNAME
+Name:  app
+Value: jaeko44.github.io
+```
+
+After DNS resolves, GitHub can issue the certificate and HTTPS enforcement can be enabled for the Pages site.
+
 ## MYOB Configuration
 
 Keep these values aligned:
