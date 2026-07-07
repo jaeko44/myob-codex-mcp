@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Redirecting MYOB Callback</title>
+</head>
+<body>
+  <p>Redirecting the MYOB callback to the static handler.</p>
+  <script>
+    (function () {
+      "use strict";
+
+      var parts = window.location.pathname.split("/").filter(Boolean);
+      var root = "/";
+
+      if (window.location.hostname.endsWith("github.io") && parts.length > 0) {
+        root = "/" + parts[0] + "/";
+      }
+
+      window.location.replace(root + window.location.search + window.location.hash);
+    })();
+  </script>
+</body>
+</html>

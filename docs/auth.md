@@ -4,6 +4,8 @@ Online MYOB files use OAuth. The server requests consent, captures the authoriza
 
 One MYOB Developer App key/secret can be reused across many client files, but OAuth consent is per business/company file. Repeat the authorization flow once for every business the accountant needs to work with.
 
+For hosted manual callbacks, deploy the static helper in `site/` and keep the MYOB Developer Dashboard redirect URI identical to the MCP `redirect_uri`. The deployment and accountant workflow are documented in [callback-site.md](callback-site.md).
+
 Important behavior:
 
 - `prompt=consent` is included.

@@ -106,6 +106,8 @@ myob_oauth_authorize_business(manual=true)
 myob_oauth_exchange_redirect_url(redirect_url="https://app.example/callback?code=...&businessId=...")
 ```
 
+This repo also includes a dependency-free static callback helper in `site/`. It can be deployed at `https://app.professionalaccounting.com.au` so accountants can copy the exact Codex/MCP exchange instruction after MYOB redirects back. See [docs/callback-site.md](docs/callback-site.md).
+
 Repeat this once for each MYOB business/company file that an accountant administers. The same MYOB Developer App key/secret can be reused, but each business must grant consent separately. Authorised businesses can then be listed and selected:
 
 ```text
